@@ -1,0 +1,5 @@
+.env
+entry-point/entry-point.log
+entry-point/__pycache__
+entry-point.log
+db.save.json
