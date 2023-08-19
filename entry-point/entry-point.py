@@ -1,12 +1,12 @@
 import asyncio
-import handler
+import handler2
 
 import argparse
 
 import time
 
 async def entry_point(args):
-    con_handler = handler.Handler()
+    con_handler = handler2.Handler("")
     if not args.ipf:
         server = await asyncio.start_server(con_handler.handle, "::", args.port)
     else:
@@ -65,6 +65,7 @@ def main(args):
 def create_arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument ("-p","--port",default=5363)
+    parser.add_argument ("-g", "--gpg-home",default=None ,help="")
     parser.add_argument("-4","--ipf",action="store_true", default=False)
 
     return parser
@@ -72,5 +73,7 @@ def create_arg_parser():
 if __name__ == "__main__":
     parser = create_arg_parser()
     args = parser.parse_args()
+
+    # print(args)
 
     main(args)

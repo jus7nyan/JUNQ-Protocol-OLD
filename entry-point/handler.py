@@ -1,9 +1,11 @@
 import asyncio
 import json
+import gnupg
 
 import log
-"""
 
+"""
+0
 commands:
     register:
         if you want to have an identifier and the ability to sign messages,
@@ -20,20 +22,21 @@ class Handler:
             "clients": {},
             "groups": {},
             "group signs": {},
-            "signatures": {},
+            "gpg_keys": {},
             "entry-points": []
         }
         self.version = "0.1.0"
 
         self.commands = {
             "0": self.register,
-            "1": self.get_signature,
+            "1": self.get_gpg_key,
             "2": self.get_groups,
             "3": self.get_entry_points,
             "4": self.add_entry_points,
             "5": self.add_group,
             "6": self.get_client,
             "7": self.get_version,
+            "8": self.auth,
             "256": self.is_entry_point
             }
 
@@ -49,7 +52,7 @@ class Handler:
             data = await reader.read(4096)
             if data != b'':
                 gpg_key = data.decode()[:-1]
-                self.db["signatures"].update({ident:gpg_key})
+                self.db["gpg_keys"].update({ident:gpg_key})
                 self.db["clients"].update({ident:addr})
                 self.logger.info(f"succses registered {ident}:::{addr}:::{gpg_key}")
                 writer.write(b"OK")
@@ -61,16 +64,16 @@ class Handler:
 
     
     
-    async def get_signature(self,addr, reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
+    async def get_gpg_key(self,addr, reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
         self.logger.info(f"get sign cmd from addr={addr}")
         writer.write(b"GET_SIGNATURE")
         await writer.drain()
         data = await reader.read(1024)
         ident = data.decode()[:-1]
         if ident[:3] == "usr":
-            if ident[3:] in self.db["signatures"].keys():
+            if ident[3:] in self.db["gpg_keys"].keys():
                 self.logger.info(f"requested sign for id={ident}")
-                writer.write(self.db["signatures"][ident].encode())
+                writer.write(self.db["gpg_keys"][ident].encode())
                 await writer.drain()
             else:
                     self.logger.debug(f"Wrong ident id={ident}")
@@ -99,7 +102,7 @@ class Handler:
         ident = data.decode()[:-1]
 
         if ident in self.db["clients"].keys():
-            writer.write(str({ "id":ident, "addr":self.db["clients"][ident], "sign":self.db["signatures"][ident] }).encode())
+            writer.write(str({ "id":ident, "addr":self.db["clients"][ident], "sign":self.db["gpg_keys"][ident] }).encode())
         else:
             self.logger.debug(f"Wrong ident id={ident}")
             writer.write(b"WRONG_IDENT")
@@ -153,6 +156,19 @@ class Handler:
     async def is_entry_point(self, addr, reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
         writer.write(b"OK")
         await writer.drain()
+    
+    async def auth(self, addr, reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
+        self.logger.info(f"set address cmd from addr={addr}")
+        writer.write(b"SET_ADDR")
+        await writer.drain()
+        data = await reader.read(1024)
+        ident = data.decode()[:-1]
+        if self.db["clients"][ident] != addr:
+            data = await reader.read(4096)
+            gpg_key = data.decode()[:-1]
+            if self.db["gpg_keys"][ident] == gpg_key:
+                self.db["clients"][ident] = addr
+
 
     async def handle(self, reader:asyncio.StreamReader, writer:asyncio.StreamWriter):
         addr = writer.get_extra_info('peername')[0]
